@@ -182,8 +182,8 @@ const heartGroup = createHeart();
 // ==================== Canvas 纹理工具 ====================
 function makeTextSprite(text, fontSize, color, maxWidth) {
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 256;
+  canvas.width = 2048;
+  canvas.height = 384;
   const ctx = canvas.getContext('2d');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -310,27 +310,42 @@ function createPhotoWall(stageIndex) {
     const yOffset = totalH / 2 - photoH / 2 - i * (photoH + gap);
 
     const geo = new THREE.PlaneGeometry(photoW, photoH);
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshBasicMaterial({
       color: 0x1a1030,
-      roughness: 0.6,
-      metalness: 0.15,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(0, yOffset, 0);
     mesh.userData = { photoPath, caption: def.captions[i] };
 
-    // 异步加载纹理
+    // 编码路径（中文文件名支持）
+    const encodedPath = photoPath.split('/').map(s => encodeURIComponent(s)).join('/');
     textureLoader.load(
-      photoPath,
+      encodedPath,
       (tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         mat.map = tex;
         mat.color.set(0xffffff);
-        mat.roughness = 0.3;
         mat.needsUpdate = true;
       },
       undefined,
-      () => { mat.color.set(0x1a1030); }
+      (err) => {
+        console.warn('Photo load failed:', encodedPath, err);
+        // 回退：尝试原始路径
+        if (encodedPath !== photoPath) {
+          textureLoader.load(photoPath,
+            (tex2) => {
+              tex2.colorSpace = THREE.SRGBColorSpace;
+              mat.map = tex2;
+              mat.color.set(0xffffff);
+              mat.needsUpdate = true;
+            },
+            undefined,
+            () => { mat.color.set(0x331133); }
+          );
+        } else {
+          mat.color.set(0x331133);
+        }
+      }
     );
 
     group.add(mesh);
