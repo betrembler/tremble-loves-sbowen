@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tremble ❤ Sbowen — 星际旅程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000008;
+    overflow: hidden;
+    font-family: 'Georgia', 'STSong', 'SimSun', 'PingFang SC', 'Microsoft YaHei', serif;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+  }
+  canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
+
+  /* ===== 封面层 ===== */
+  #coverOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 10; pointer-events: none;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 1.5s ease;
+  }
+  #coverOverlay.hidden { opacity: 0; }
+
+  .cover-title {
+    font-size: clamp(2.5rem, 7vw, 5.5rem);
+    font-weight: bold;
+    background: linear-gradient(135deg, #ff6b9d, #ff9a76, #c44dff, #6ec6ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+    animation: titleGlow 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 30px rgba(196, 77, 255, 0.5));
+  }
+  @keyframes titleGlow {
+    0%, 100% { filter: drop-shadow(0 0 20px rgba(196, 77, 255, 0.4)); }
+    50% { filter: drop-shadow(0 0 50px rgba(255, 107, 157, 0.8)); }
+  }
+  .cover-subtitle {
+    margin-top: 1.5rem;
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.25em;
+    text-align: center;
+  }
+  .cover-hint {
+    position: fixed; bottom: 3rem; left: 50%; transform: translateX(-50%);
+    z-index: 10; color: rgba(255, 255, 255, 0.5);
+    font-size: 1rem; letter-spacing: 0.15em;
+    animation: hintPulse 2.5s ease-in-out infinite;
+    transition: opacity 1s ease;
+  }
+  .cover-hint.dim { opacity: 0; }
+  @keyframes hintPulse {
+    0%, 100% { opacity: 0.4; transform: translateX(-50%) translateY(0); }
+    50% { opacity: 1; transform: translateX(-50%) translateY(-8px); }
+  }
+
+  /* ===== 最终画面 ===== */
+  #finalOverlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 20; pointer-events: none;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 2s ease;
+  }
+  #finalOverlay.visible { opacity: 1; }
+  .final-text {
+    font-size: clamp(2rem, 5vw, 4rem);
+    font-weight: bold;
+    background: linear-gradient(135deg, #ff6b9d, #ff9a76, #ffc1cc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    animation: finalShine 2s ease-in-out infinite;
+    filter: drop-shadow(0 0 40px rgba(255, 107, 157, 0.6));
+  }
+  @keyframes finalShine {
+    0%, 100% { filter: drop-shadow(0 0 30px rgba(255, 107, 157, 0.5)); }
+    50% { filter: drop-shadow(0 0 70px rgba(255, 154, 118, 0.9)); }
+  }
+  .final-sub {
+    margin-top: 2rem;
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.2em;
+  }
+
+  /* ===== 照片计数器 ===== */
+  #progressBar {
+    position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+    z-index: 10; display: flex; gap: 8px;
+    transition: opacity 1s ease;
+    opacity: 0;
+  }
+  #progressBar.visible { opacity: 1; }
+  .progress-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: all 0.6s ease;
+  }
+  .progress-dot.active { background: #ff6b9d; box-shadow: 0 0 10px #ff6b9d; }
+  .progress-dot.passed { background: rgba(255, 255, 255, 0.5); }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 768px) {
+    .cover-title { font-size: 2rem; }
+    .final-text { font-size: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="coverOverlay">
+  <h1 class="cover-title">Tremble<br>❤<br>Sbowen</h1>
+  <p class="cover-subtitle">✦ 穿越星际，只为与你相遇 ✦</p>
+</div>
+<p class="cover-hint" id="coverHint">↓ 按下箭头键，开始我们的旅程</p>
+
+<div id="finalOverlay">
+  <p class="final-text">I love you,<br>from this day,<br>until my last day.</p>
+  <p class="final-sub">✦ 你是我宇宙中最亮的星 ✦</p>
+</div>
+
+<div id="progressBar"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ==================== 基础场景 ====================
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000010, 0.000015);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.3, 200);
+camera.position.set(0, 2, 10);
+camera.lookAt(0, 1.5, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+// ==================== 光照 ====================
+const ambientLight = new THREE.AmbientLight(0x1a1040, 0.6);
+scene.add(ambientLight);
+
+const pointLight1 = new THREE.PointLight(0xff6b9d, 8, 15, 1.5);
+pointLight1.position.set(0, 2, 6);
+scene.add(pointLight1);
+
+const pointLight2 = new THREE.PointLight(0x6ec6ff, 3, 20, 2);
+pointLight2.position.set(-5, -1, -20);
+scene.add(pointLight2);
+
+const pointLight3 = new THREE.PointLight(0xc44dff, 4, 18, 2);
+pointLight3.position.set(5, 1, -35);
+scene.add(pointLight3);
+
+// ==================== 星空粒子系统 ====================
+function createStarfield() {
+  const count = 4000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+
+  for (let i = 0; i < count; i++) {
+    // 球体分布
+    const radius = 40 + Math.random() * 80;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+    positions[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * radius;
+    positions[i * 3 + 2] = Math.cos(phi) * radius;
+
+    // 颜色：白色到蓝白到粉白
+    const colorChoice = Math.random();
+    if (colorChoice < 0.6) {
+      colors[i * 3] = 0.8 + Math.random() * 0.2;
+      colors[i * 3 + 1] = 0.85 + Math.random() * 0.15;
+      colors[i * 3 + 2] = 1;
+    } else if (colorChoice < 0.85) {
+      colors[i * 3] = 1;
+      colors[i * 3 + 1] = 0.5 + Math.random() * 0.3;
+      colors[i * 3 + 2] = 0.6 + Math.random() * 0.3;
+    } else {
+      colors[i * 3] = 0.5 + Math.random() * 0.3;
+      colors[i * 3 + 1] = 0.6 + Math.random() * 0.3;
+      colors[i * 3 + 2] = 1;
+    }
+
+    sizes[i] = Math.random() * 2.5 + 0.3;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.15,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  const stars = new THREE.Points(geo, mat);
+  stars.name = 'starfield';
+  scene.add(stars);
+  return stars;
+}
+const starfield = createStarfield();
+
+// ==================== 3D 立体爱心粒子 ====================
+function createHeartParticles() {
+  // 使用参数方程生成爱心曲线 + 3D 深度，比 rejection sampling 快得多
+  const scale = 3.5;
+  const surfaceCount = 1500;
+  const innerCount = 400;
+  const totalCount = surfaceCount + innerCount;
+  const positions = new Float32Array(totalCount * 3);
+  const colors = new Float32Array(totalCount * 3);
+
+  // 爱心参数方程: x(t) = 16 sin³(t), y(t) = 13cos(t) - 5cos(2t) - 2cos(3t) - cos(4t)
+  // 范围: x ∈ [-16, 16], y ∈ [-17, 14]
+  function heartX(t) { return 16 * Math.pow(Math.sin(t), 3); }
+  function heartY(t) { return 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t); }
+
+  // 表面粒子
+  for (let i = 0; i < surfaceCount; i++) {
+    const t = Math.random() * Math.PI * 2;
+    const hx = heartX(t) / 16;
+    const hy = heartY(t) / 17;
+    const zDepth = (Math.random() - 0.5) * 0.7 * (1 - Math.abs(hy) * 0.4);
+    const shrinkXY = 1 - Math.abs(zDepth) * 0.5;
+
+    positions[i * 3] = hx * scale * shrinkXY;
+    positions[i * 3 + 1] = hy * scale + 2.5;
+    positions[i * 3 + 2] = zDepth * scale;
+
+    const colorT = (hy + 1) / 2;
+    colors[i * 3] = 0.85 + colorT * 0.15;
+    colors[i * 3 + 1] = 0.12 + colorT * 0.25;
+    colors[i * 3 + 2] = 0.18 + colorT * 0.25;
+  }
+
+  // 内部填充
+  for (let i = 0; i < innerCount; i++) {
+    const t = Math.random() * Math.PI * 2;
+    const hx = heartX(t) / 16;
+    const hy = heartY(t) / 17;
+    const innerScale = 0.3 + Math.random() * 0.5;
+    const zDepth = (Math.random() - 0.5) * 0.4 * innerScale;
+
+    positions[(surfaceCount + i) * 3] = hx * scale * innerScale * (1 - Math.abs(zDepth));
+    positions[(surfaceCount + i) * 3 + 1] = hy * scale * innerScale + 2.5;
+    positions[(surfaceCount + i) * 3 + 2] = zDepth * scale;
+
+    colors[(surfaceCount + i) * 3] = 1;
+    colors[(surfaceCount + i) * 3 + 1] = 0.25 + Math.random() * 0.2;
+    colors[(surfaceCount + i) * 3 + 2] = 0.25 + Math.random() * 0.25;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.1,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.9,
+  });
+
+  const heart = new THREE.Points(geo, mat);
+  heart.name = 'heart';
+  heart.position.set(0, 1.2, -2);
+  scene.add(heart);
+
+  // 外层光晕：同样使用参数方程，加一些随机偏移
+  const glowCount = 400;
+  const glowPositions = new Float32Array(glowCount * 3);
+  const glowColorsArr = new Float32Array(glowCount * 3);
+  for (let i = 0; i < glowCount; i++) {
+    const t = Math.random() * Math.PI * 2;
+    const hx = heartX(t) / 16;
+    const hy = heartY(t) / 17;
+    const zDepth = (Math.random() - 0.5) * 0.9;
+    const jitter = 0.92 + Math.random() * 0.16;
+
+    glowPositions[i * 3] = hx * scale * jitter * (1 - Math.abs(zDepth) * 0.3);
+    glowPositions[i * 3 + 1] = hy * scale * jitter + 2.5;
+    glowPositions[i * 3 + 2] = zDepth * scale * jitter;
+    glowColorsArr[i * 3] = 0.8;
+    glowColorsArr[i * 3 + 1] = 0.5;
+    glowColorsArr[i * 3 + 2] = 0.9;
+  }
+
+  const glowGeo = new THREE.BufferGeometry();
+  glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPositions, 3));
+  glowGeo.setAttribute('color', new THREE.BufferAttribute(glowColorsArr, 3));
+  const glowMat = new THREE.PointsMaterial({
+    size: 0.25,
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.35,
+  });
+  const glow = new THREE.Points(glowGeo, glowMat);
+  glow.name = 'heartGlow';
+  glow.position.copy(heart.position);
+  scene.add(glow);
+
+  return { heart, glow };
+}
+const heartGroup = createHeartParticles();
+
+// ==================== 摄像机路径（蜿蜒前进） ====================
+const pathPoints = [
+  new THREE.Vector3(0, 3, 7),
+  new THREE.Vector3(4, 2.5, 2),
+  new THREE.Vector3(-5, 2, -5),
+  new THREE.Vector3(5, 2.5, -14),
+  new THREE.Vector3(-6, 1.5, -23),
+  new THREE.Vector3(4, 2, -32),
+  new THREE.Vector3(-5, 1.5, -41),
+  new THREE.Vector3(3, 2, -50),
+  new THREE.Vector3(-4, 1, -59),
+  new THREE.Vector3(0, 1.5, -68),
+];
+
+const cameraPath = new THREE.CatmullRomCurve3(pathPoints, false, 'catmullrom', 0.5);
+
+// 可视化路径（微弱光线）
+const pathLinePoints = cameraPath.getPoints(200);
+const pathLineGeo = new THREE.BufferGeometry().setFromPoints(pathLinePoints);
+const pathLineMat = new THREE.LineBasicMaterial({
+  color: 0x442255,
+  transparent: true,
+  opacity: 0.2,
+  depthWrite: false,
+});
+const pathLine = new THREE.Line(pathLineGeo, pathLineMat);
+scene.add(pathLine);
+
+// ==================== 照片墙数据 ====================
+// 照片分组，每组对应一个路径段
+const photoGroups = [
+  {
+    photos: ['1.jpg'],
+    side: 'center',
+    caption: '最特别的你'
+  },
+  {
+    photos: ['IMG_4192.jpg', 'IMG_4257.PNG', 'IMG_5746.jpg'],
+    side: 'right',
+    caption: '甜蜜时光'
+  },
+  {
+    photos: ['IMG_6034.jpg', 'IMG_6978.JPG', 'IMG_7465.JPG'],
+    side: 'left',
+    caption: '每一个心动瞬间'
+  },
+  {
+    photos: ['1/1.JPG', '1/2.png', '1/IMG_7234.jpg'],
+    side: 'right',
+    caption: '只属于我们的回忆'
+  },
+  {
+    photos: ['1/IMG_7463.JPG', '1/IMG_7464.JPG', '2/IMG_4640.jpg'],
+    side: 'left',
+    caption: '与你相伴的日子'
+  },
+  {
+    photos: ['2/IMG_4663.jpg', '2/IMG_7234.jpg'],
+    side: 'right',
+    caption: '你眼里的星光'
+  },
+  {
+    photos: [
+      '结果/ChatGPT Image 2026年5月4日 01_12_07.png',
+      '结果/ChatGPT Image 2026年5月4日 01_27_26.png',
+      '结果/ChatGPT Image 2026年5月4日 01_51_09.png'
+    ],
+    side: 'left',
+    caption: '星辰为证'
+  },
+  {
+    photos: [
+      '结果/ChatGPT Image 2026年5月4日 02_08_48.png',
+      '结果/ChatGPT Image 2026年5月4日 02_17_36.png',
+      '结果/ChatGPT Image 2026年5月4日 14_05_37.png'
+    ],
+    side: 'right',
+    caption: '永恒的爱'
+  },
+  {
+    photos: [
+      '结果/ChatGPT Image 2026年5月4日 15_18_02.png',
+      '结果/ChatGPT Image 2026年5月4日 15_57_18.png',
+      '结果/ChatGPT Image 2026年5月4日 16_03_44.png'
+    ],
+    side: 'left',
+    caption: '我们的未来'
+  },
+];
+
+// ==================== 创建照片墙 ====================
+const textureLoader = new THREE.TextureLoader();
+const photoWalls = [];
+const wallGroup = new THREE.Group();
+wallGroup.name = 'photoWalls';
+scene.add(wallGroup);
+
+function createPhotoWall(photos, pathProgress, side, caption) {
+  const group = new THREE.Group();
+  const pathPoint = cameraPath.getPointAt(pathProgress);
+  const tangent = cameraPath.getTangentAt(pathProgress).normalize();
+
+  // 计算侧方向
+  const up = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3().crossVectors(tangent, up).normalize();
+
+  // 偏移方向
+  let offsetDir;
+  if (side === 'left') offsetDir = right.clone().multiplyScalar(-1);
+  else if (side === 'right') offsetDir = right.clone();
+  else offsetDir = new THREE.Vector3(0, 0, 0);
+
+  const distance = 5 + Math.random() * 2;
+
+  // 根据照片数量布局
+  const n = photos.length;
+  let layouts = [];
+
+  if (n === 1) {
+    // 单张：大尺寸居中
+    layouts = [{ w: 3.5, h: 3.5, ox: 0, oy: 0.5 }];
+  } else if (n === 2) {
+    // 两张：并排
+    layouts = [
+      { w: 2.5, h: 2.5, ox: -1.6, oy: 0.3 },
+      { w: 2.5, h: 2.5, ox: 1.6, oy: -0.3 },
+    ];
+  } else if (n === 3) {
+    // 三张：品字形
+    layouts = [
+      { w: 2.8, h: 2.8, ox: 0, oy: 1.8 },
+      { w: 2.2, h: 2.2, ox: -2, oy: -1 },
+      { w: 2.2, h: 2.2, ox: 2, oy: -1 },
+    ];
+  }
+
+  // 计算壁面朝向（面向路径）
+  const lookTarget = pathPoint.clone().add(tangent);
+  // 壁面朝向路径
+  const wallNormal = offsetDir.clone().normalize();
+
+  photos.forEach((photoPath, i) => {
+    const layout = layouts[i] || layouts[0];
+
+    // 使用占位材质先
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x1a1030,
+      roughness: 0.7,
+      metalness: 0.1,
+    });
+
+    const geometry = new THREE.PlaneGeometry(layout.w, layout.h);
+    const mesh = new THREE.Mesh(geometry, material);
+
+    // 位置
+    const worldPos = pathPoint.clone()
+      .add(offsetDir.clone().multiplyScalar(distance))
+      .add(new THREE.Vector3(0, layout.oy, 0));
+
+    if (side !== 'center') {
+      worldPos.add(right.clone().multiplyScalar(layout.ox));
+    }
+
+    mesh.position.copy(worldPos);
+
+    // 朝向：图片面向路径
+    mesh.lookAt(pathPoint.clone().add(new THREE.Vector3(0, layout.oy, 0)));
+
+    // 加载纹理
+    textureLoader.load(
+      photoPath,
+      (texture) => {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        material.map = texture;
+        material.color.set(0xffffff);
+        material.needsUpdate = true;
+      },
+      undefined,
+      () => {
+        // 加载失败：保持深色占位
+        material.color.set(0x1a1030);
+      }
+    );
+
+    group.add(mesh);
+  });
+
+  // 装饰边框粒子
+  const frameParticlesCount = 40;
+  const framePositions = new Float32Array(frameParticlesCount * 3);
+  for (let i = 0; i < frameParticlesCount; i++) {
+    const angle = (i / frameParticlesCount) * Math.PI * 2;
+    const r = 5 + Math.random();
+    const h = (Math.random() - 0.5) * 6;
+    framePositions[i * 3] = Math.cos(angle) * r;
+    framePositions[i * 3 + 1] = h;
+    framePositions[i * 3 + 2] = Math.sin(angle) * r;
+  }
+
+  const frameGeo = new THREE.BufferGeometry();
+  frameGeo.setAttribute('position', new THREE.BufferAttribute(framePositions, 3));
+  const frameMat = new THREE.PointsMaterial({
+    size: 0.06,
+    color: 0xff6b9d,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.4,
+  });
+  const frameParticles = new THREE.Points(frameGeo, frameMat);
+  frameParticles.position.copy(pathPoint).add(offsetDir.clone().multiplyScalar(distance));
+
+  group.add(frameParticles);
+  group.userData = { pathProgress, side, caption };
+  wallGroup.add(group);
+  photoWalls.push(group);
+}
+
+// 沿路径放置照片墙
+const TOTAL_STAGES = 10; // 含封面和结尾
+const STAGE_PROGRESS = [0.0, 0.08, 0.18, 0.28, 0.38, 0.48, 0.58, 0.7, 0.82, 1.0];
+
+photoGroups.forEach((group, i) => {
+  const progress = STAGE_PROGRESS[i + 1]; // i+1 因为 stage 0 是封面
+  createPhotoWall(group.photos, progress, group.side, group.caption);
+});
+
+// ==================== 导航状态 ====================
+let currentStage = 0;
+let targetStage = 0;
+let currentProgress = 0;
+let journeyStarted = false;
+let journeyComplete = false;
+const totalStages = TOTAL_STAGES;
+
+// 更新进度条
+function updateProgressBar() {
+  const bar = document.getElementById('progressBar');
+  bar.innerHTML = '';
+  for (let i = 1; i < totalStages; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if (i <= currentStage) dot.classList.add('passed');
+    if (i === currentStage) {
+      dot.classList.add('active');
+      dot.classList.remove('passed');
+    }
+    bar.appendChild(dot);
+  }
+  if (currentStage > 0 && currentStage < totalStages) {
+    bar.classList.add('visible');
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+// ==================== UI 控制 ====================
+const coverOverlay = document.getElementById('coverOverlay');
+const coverHint = document.getElementById('coverHint');
+const finalOverlay = document.getElementById('finalOverlay');
+
+function advance() {
+  if (journeyComplete) return;
+
+  if (!journeyStarted) {
+    journeyStarted = true;
+    coverOverlay.classList.add('hidden');
+    coverHint.classList.add('dim');
+    setTimeout(() => { coverHint.textContent = '↓ 继续向前'; coverHint.classList.remove('dim'); }, 1500);
+  }
+
+  if (targetStage < totalStages - 1) {
+    targetStage++;
+  }
+
+  if (targetStage === totalStages - 1 && currentStage === totalStages - 1) {
+    journeyComplete = true;
+    coverHint.classList.add('dim');
+    setTimeout(() => {
+      finalOverlay.classList.add('visible');
+    }, 1200);
+  }
+
+  updateProgressBar();
+}
+
+// 键盘事件
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    advance();
+  }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    if (targetStage > 0 && !journeyComplete) {
+      targetStage--;
+      if (targetStage === 0) {
+        journeyStarted = false;
+        coverOverlay.classList.remove('hidden');
+        coverHint.textContent = '↓ 按下箭头键，开始我们的旅程';
+        coverHint.classList.remove('dim');
+        finalOverlay.classList.remove('visible');
+        updateProgressBar();
+      }
+    }
+  }
+});
+
+// 点击事件（移动端）
+window.addEventListener('click', (e) => {
+  if (e.target === renderer.domElement) {
+    advance();
+  }
+});
+
+// 触摸事件
+let touchStartY = 0;
+window.addEventListener('touchstart', (e) => {
+  touchStartY = e.touches[0].clientY;
+});
+window.addEventListener('touchend', (e) => {
+  const diff = touchStartY - e.changedTouches[0].clientY;
+  if (diff > 40) advance(); // 上滑 = 前进
+  if (diff < -40 && targetStage > 0 && !journeyComplete) {
+    targetStage--;
+    if (targetStage === 0) {
+      journeyStarted = false;
+      coverOverlay.classList.remove('hidden');
+      coverHint.textContent = '↓ 按下箭头键，开始我们的旅程';
+      coverHint.classList.remove('dim');
+      finalOverlay.classList.remove('visible');
+      updateProgressBar();
+    }
+  }
+});
+
+// 鼠标滚轮
+window.addEventListener('wheel', (e) => {
+  if (e.deltaY > 0) advance();
+  else if (e.deltaY < 0 && targetStage > 0 && !journeyComplete) {
+    targetStage--;
+    if (targetStage === 0) {
+      journeyStarted = false;
+      coverOverlay.classList.remove('hidden');
+      coverHint.textContent = '↓ 按下箭头键，开始我们的旅程';
+      coverHint.classList.remove('dim');
+      finalOverlay.classList.remove('visible');
+      updateProgressBar();
+    }
+  }
+});
+
+// ==================== 动画循环 ====================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const elapsed = performance.now() * 0.001;
+
+  // 平滑过渡当前进度
+  const targetProgress = STAGE_PROGRESS[targetStage];
+  currentProgress += (targetProgress - currentProgress) * 2.5 * dt;
+
+  // 摄像机位置
+  const camPos = cameraPath.getPointAt(currentProgress);
+  const lookAhead = cameraPath.getPointAt(Math.min(currentProgress + 0.03, 1.0));
+  const tangent = cameraPath.getTangentAt(currentProgress).normalize();
+
+  camera.position.lerp(camPos, 4 * dt);
+
+  // 摄像机注视：稍前方 + 轻微上下摆动
+  const lookTarget = new THREE.Vector3().lerpVectors(camPos, lookAhead, 2.5);
+  lookTarget.y += Math.sin(currentProgress * 12) * 0.5;
+
+  const currentLook = new THREE.Vector3();
+  camera.getWorldDirection(currentLook);
+  const targetLook = lookTarget.clone().sub(camera.position).normalize();
+
+  // 平滑旋转
+  const lerpedLook = new THREE.Vector3().lerpVectors(currentLook, targetLook, 3 * dt).normalize();
+  const lookAtPoint = camera.position.clone().add(lerpedLook.multiplyScalar(10));
+  camera.lookAt(lookAtPoint);
+
+  // 爱心旋转 + 呼吸效果
+  if (heartGroup.heart) {
+    const breathe = 1 + Math.sin(elapsed * 0.8) * 0.05;
+    heartGroup.heart.rotation.y += dt * 0.3;
+    heartGroup.heart.rotation.z = Math.sin(elapsed * 0.4) * 0.1;
+    heartGroup.heart.scale.setScalar(breathe);
+    if (heartGroup.glow) {
+      heartGroup.glow.rotation.y = heartGroup.heart.rotation.y;
+      heartGroup.glow.scale.setScalar(breathe * 1.15);
+    }
+  }
+
+  // 星空缓慢旋转
+  starfield.rotation.y += dt * 0.015;
+  starfield.rotation.x += dt * 0.005;
+
+  // 爱心灯光随距离衰减
+  const distToHeart = camera.position.distanceTo(new THREE.Vector3(0, 3.7, 1));
+  pointLight1.intensity = Math.max(0, 8 * Math.exp(-distToHeart * 0.05));
+
+  // 更新阶段状态
+  for (let i = 1; i < totalStages; i++) {
+    if (currentProgress >= STAGE_PROGRESS[i] && currentStage < i) {
+      currentStage = i;
+      updateProgressBar();
+      if (currentStage === totalStages - 1 && !journeyComplete) {
+        journeyComplete = true;
+        coverHint.classList.add('dim');
+        setTimeout(() => finalOverlay.classList.add('visible'), 1500);
+      }
+    }
+  }
+
+  // 照片墙可见性优化
+  photoWalls.forEach((wall) => {
+    const wp = wall.userData.pathProgress;
+    const dist = Math.abs(currentProgress - wp);
+    wall.visible = dist < 0.25;
+    if (wall.visible) {
+      const alpha = dist < 0.08 ? 1 : 1 - (dist - 0.08) / 0.17;
+      wall.children.forEach((child) => {
+        if (child.material && child.material.isMeshStandardMaterial) {
+          child.material.opacity = alpha;
+          child.material.transparent = true;
+        }
+        if (child.isPoints) {
+          child.material.opacity = alpha * 0.4;
+        }
+      });
+    }
+  });
+
+  renderer.render(scene, camera);
+}
+
+updateProgressBar();
+animate();
+
+// ==================== 窗口大小调整 ====================
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+console.log('%c🌟 星际旅程已就绪 %c| %c按下 ↓ 键开始 %c🌟',
+  'font-size:1.2em;', '', 'color:#ff6b9d;', '');
+console.log('%cTremble ❤ Sbowen', 'font-size:1.5em;color:#c44dff;');
+</script>
+
+</body>
+</html>
